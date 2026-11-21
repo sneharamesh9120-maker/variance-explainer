@@ -6,10 +6,10 @@ Pipeline for every report:
 """
 
 import os
-from datetime import datetime, timezone
 
-from flask import Flask, render_template, request
+from flask import Flask, abort, flash, redirect, render_template, request, url_for
 
+import db
 from checks import ParseError, check_and_score, logic_only_result, parse_reply
 from llm import LLMError, call_llm
 from logic import analyse
@@ -18,6 +18,9 @@ from validation import CURRENCIES, validate
 
 # All files sit in one folder: page templates, CSS and JS are loaded from here.
 app = Flask(__name__, template_folder=".", static_folder=None)
+app.secret_key = os.environ.get("SESSION_SECRET", "dev-only-change-me")
+
+db.init_db()
 
 
 @app.template_filter("money")
@@ -47,24 +50,62 @@ def run_analysis():
         return render_template("index.html", currencies=CURRENCIES, form=request.form, errors=errors), 400
 
     analysis = analyse(data)
+    meta = {}
+
     if not analysis["material"]:
-        result = logic_only_result(analysis, "Nothing passed the materiality rule.")
-        result["ai_used"] = True
-        result["summary"] = "Every line is close to forecast or too small to matter. Nothing needs explaining."
+        result = logic_only_result(analysis, "Nothing passed the materiality rule, so there was nothing to explain.")
+        result["ai_used"] = True  # not a failure, just nothing to send
+        result["summary"] = (
+            f"Every line is within {analysis['thresholds']['material_pct']:.0f}% of forecast or too small to matter. "
+            "No variance needs explaining this period."
+        )
     else:
         try:
             reply = call_llm(build_messages(data, analysis))
-            result = check_and_score(parse_reply(reply["text"]), analysis)
+            meta = reply
+            raw = parse_reply(reply["text"])
+            result = check_and_score(raw, analysis)
         except (LLMError, ParseError) as e:
             result = logic_only_result(analysis, str(e))
 
-    rec = {"id": "draft", "created_at": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M")}
-    return render_template("report.html", rec=rec, data=data, analysis=analysis, result=result)
+    report_id = db.save_report(data, analysis, result, meta)
+    return redirect(url_for("view_report", report_id=report_id))
+
+
+@app.route("/report/<int:report_id>")
+def view_report(report_id):
+    rec = db.get_report(report_id)
+    if not rec:
+        abort(404)
+    return render_template("report.html", rec=rec, data=rec["input"],
+                           analysis=rec["analysis"], result=rec["result"])
+
+
+@app.route("/report/<int:report_id>/feedback", methods=["POST"])
+def feedback(report_id):
+    value = request.form.get("value")
+    if value in ("up", "down"):
+        db.save_feedback(report_id, value, request.form.get("note", ""))
+        flash("Thanks. Feedback saved.")
+    return redirect(url_for("view_report", report_id=report_id))
+
+
+@app.route("/history")
+def history():
+    return render_template("history.html", reports=db.list_reports())
 
 
 @app.errorhandler(404)
 def not_found(_):
-    return render_template("message.html", title="Not found", message="That page doesn't exist."), 404
+    return render_template("message.html", title="Not found",
+                           message="That report doesn't exist. It may have been deleted."), 404
+
+
+@app.errorhandler(500)
+def server_error(_):
+    return render_template("message.html", title="Something broke",
+                           message="The app hit an unexpected error. Your input was not lost on our side, "
+                                   "but please go back and try again."), 500
 
 
 if __name__ == "__main__":

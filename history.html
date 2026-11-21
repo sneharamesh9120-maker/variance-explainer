@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Past reports | Variance Explainer{% endblock %}
+{% block content %}
+<h1>Past reports</h1>
+{% if not reports %}
+  <p class="card">No reports yet. <a href="{{ url_for('index') }}">Run your first one.</a></p>
+{% else %}
+<div class="table-scroll card">
+<table class="data">
+  <thead><tr><th>#</th><th>Created (UTC)</th><th>Report</th><th>Period</th><th class="num">Net variance</th><th>Lines</th><th>Confidence</th><th></th></tr></thead>
+  <tbody>
+  {% for r in reports %}
+    <tr>
+      <td>{{ r.id }}</td><td>{{ r.created_at }}</td><td>{{ r.title }}</td><td>{{ r.period }}</td>
+      <td class="num {{ 'bad' if r.net_variance < 0 else 'good' }}">{{ r.net_variance|money }} {{ r.currency }}</td>
+      <td>{{ r.material_count }} of {{ r.line_count }}</td>
+      <td><span class="chip conf-{{ r.overall_band|lower }}">{{ r.overall_band }} ({{ r.overall_confidence }})</span>
+        {% if not r.ai_used %}<span class="tag">AI failed</span>{% endif %}</td>
+      <td><a href="{{ url_for('view_report', report_id=r.id) }}">Open</a></td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endif %}
+{% endblock %}

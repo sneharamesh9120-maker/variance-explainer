@@ -121,4 +121,16 @@
 </section>
 {% endif %}
 
+<section class="card">
+  <h2>Was this explanation right?</h2>
+  {% if rec.feedback %}
+    <p>You marked this report as <strong>{{ 'useful' if rec.feedback == 'up' else 'not right' }}</strong>{% if rec.feedback_note %}: "{{ rec.feedback_note }}"{% endif %}.</p>
+  {% else %}
+  <form method="post" action="{{ url_for('feedback', report_id=rec.id) }}" class="feedback">
+    <input name="note" maxlength="500" placeholder="Optional: what was wrong or missing?">
+    <button name="value" value="up" class="ghost">Yes, I'd use this</button>
+    <button name="value" value="down" class="ghost">No, it got something wrong</button>
+  </form>
+  {% endif %}
+</section>
 {% endblock %}
