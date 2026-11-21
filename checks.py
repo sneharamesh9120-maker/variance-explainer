@@ -88,7 +88,7 @@ def logic_only_driver(row, reason):
     }
 
 
-def check_and_score(raw, analysis):
+def check_and_score(raw, analysis, symbol=""):
     """Returns the final, checked output that gets saved and shown."""
     by_name = {r["category"].lower(): r for r in analysis["material"]}
     drivers_in = raw.get("drivers") or []
@@ -174,8 +174,12 @@ def check_and_score(raw, analysis):
     overall = _overall(checked)
 
     gaps = [str(g).strip() for g in (raw.get("data_gaps") or []) if str(g).strip()]
+    summary, bad_sentences = check_summary(str(raw.get("summary", "")), analysis)
+    for s in bad_sentences:
+        removed.append(f"Summary: removed \"{s}\" because a figure in it doesn't match your data")
+    summary = (headline(analysis, symbol) + " " + summary).strip()
     return {
-        "summary": str(raw.get("summary", "")).strip(),
+        "summary": summary,
         "drivers": checked,
         "data_gaps": gaps[:6],
         "removed": removed,
@@ -193,13 +197,13 @@ def _overall(drivers):
     return round(sum(d["confidence"] * abs(d["row"]["impact"]) for d in drivers) / weight)
 
 
-def logic_only_result(analysis, reason):
+def logic_only_result(analysis, reason, symbol=""):
     """Fallback when the LLM call or parsing fails. The report still works."""
     drivers = [logic_only_driver(r, "AI explanation unavailable. See the calculated figures.")
                for r in analysis["material"]]
     overall = _overall(drivers)
     return {
-        "summary": "",
+        "summary": headline(analysis, symbol) if analysis["material"] else "",
         "drivers": drivers,
         "data_gaps": [],
         "removed": [],
@@ -208,3 +212,85 @@ def logic_only_result(analysis, reason):
         "ai_used": False,
         "ai_error": reason,
     }
+
+
+# ---------------------------------------------------------------------------
+# Summary checks. The AI once wrote "3.24M below forecast" when the real gap
+# was 2.95M, so the headline is now built from the maths, and any other
+# figure the AI writes has to match something in the data.
+
+def _fmt_amount(x):
+    return f"{abs(x):,.0f}"
+
+
+def headline(analysis, symbol):
+    t = analysis["totals"]
+    var = t["net_variance"]
+    if var == 0:
+        return f"Net result came in exactly on forecast at {symbol}{_fmt_amount(t['net_actual'])}."
+    word = "below" if var < 0 else "above"
+    pct = t["net_variance_pct"]
+    pct_txt = f" ({abs(pct):.1f}%)" if pct is not None else ""
+    return (f"Net result came in at {symbol}{_fmt_amount(t['net_actual'])} against a forecast of "
+            f"{symbol}{_fmt_amount(t['net_forecast'])}, {symbol}{_fmt_amount(var)}{pct_txt} {word} plan.")
+
+
+_NUM = re.compile(r"(\d[\d,]*\.?\d*)\s*(%|percent|crore|cr|lakh|lakhs|l\b|million|mn|m\b|k\b|thousand)?", re.I)
+_SCALE = {"crore": 1e7, "cr": 1e7, "lakh": 1e5, "lakhs": 1e5, "l": 1e5, "million": 1e6, "mn": 1e6,
+          "m": 1e6, "k": 1e3, "thousand": 1e3}
+
+
+def _allowed_values(analysis):
+    """Every figure the AI could legitimately mention."""
+    vals, pcts, notes = set(), set(), ""
+    t = analysis["totals"]
+    for k in ("net_forecast", "net_actual", "net_variance", "revenue_forecast", "revenue_actual",
+              "cost_forecast", "cost_actual"):
+        vals.add(abs(t[k]))
+    if t["net_variance_pct"] is not None:
+        pcts.add(abs(t["net_variance_pct"]))
+    for r in analysis["rows"]:
+        for k in ("forecast", "actual", "variance", "forecast_units", "actual_units"):
+            if r.get(k) is not None:
+                vals.add(abs(r[k]))
+        if r["pvm"]:
+            for v in r["pvm"].values():
+                vals.add(abs(v))
+        if r["variance_pct"] is not None:
+            pcts.add(abs(r["variance_pct"]))
+        pcts.add(r["share"] * 100)
+        notes += " " + (r["notes"] or "").lower()
+    return vals, pcts, notes
+
+
+def _matches(value, allowed, rel=0.02):
+    return any(abs(value - a) <= max(rel * a, 0.51) for a in allowed)
+
+
+def check_summary(text, analysis):
+    """Drop any sentence with a figure that doesn't match the data. Returns (clean_text, removed)."""
+    vals, pcts, notes = _allowed_values(analysis)
+    kept, removed = [], []
+    for sentence in re.split(r"(?<=[.!?])\s+", text.strip()):
+        bad = False
+        for m in _NUM.finditer(sentence):
+            raw, unit = m.group(1), (m.group(2) or "").lower()
+            try:
+                n = float(raw.replace(",", ""))
+            except ValueError:
+                continue
+            if raw in notes or (raw + (unit or "")) in notes.replace(" ", ""):
+                continue  # quoted from the user's own notes
+            if unit in ("%", "percent"):
+                ok = _matches(n, pcts, rel=0.05)
+            elif unit in _SCALE:
+                ok = _matches(n * _SCALE[unit], vals)
+            else:
+                if n < 100 and not any(c in raw for c in ","):
+                    continue  # small plain numbers like "two weeks", "Q3", years handled below
+                ok = _matches(n, vals) or 1900 <= n <= 2100
+            if not ok:
+                bad = True
+                break
+        (removed if bad else kept).append(sentence)
+    return " ".join(kept).strip(), removed

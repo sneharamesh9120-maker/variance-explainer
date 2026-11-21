@@ -16,7 +16,8 @@ Hard rules:
 3. If a line has no notes and no price/volume split, say plainly that the data does not explain it,
    use classification "unexplained" (or "anomaly" if logic_hint is "anomaly"), and add a question
    for the business owner to data_gaps.
-4. Do not calculate new numbers. Use the figures given.
+4. Do not calculate new numbers. Avoid figures in the summary: the app writes the headline
+   numbers itself from the calculations. If you must use a figure, copy it exactly from the data.
 5. Each item in "evidence" must be either an exact quote copied from that line's notes, or a fact
    starting with "computed:" taken from the numbers given.
 6. classification must be one of: volume, price, timing, anomaly, unexplained.
@@ -25,7 +26,7 @@ Hard rules:
 
 Return JSON only, in this shape:
 {
-  "summary": "3 or 4 plain sentences a CFO could read out. Lead with the net result.",
+  "summary": "2 or 3 plain sentences a CFO could read out, about the causes. Do not restate the net result.",
   "drivers": [
     {
       "category": "exact category name",

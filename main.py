@@ -66,9 +66,9 @@ def run_analysis():
             reply = call_llm(build_messages(data, analysis))
             meta = reply
             raw = parse_reply(reply["text"])
-            result = check_and_score(raw, analysis)
+            result = check_and_score(raw, analysis, data["symbol"])
         except (LLMError, ParseError) as e:
-            result = logic_only_result(analysis, str(e))
+            result = logic_only_result(analysis, str(e), data["symbol"])
 
     report_id = db.save_report(data, analysis, result, meta)
     return redirect(url_for("view_report", report_id=report_id))

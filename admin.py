@@ -52,6 +52,8 @@ def dashboard_stats():
         for item in result.get("removed", []):
             if item.startswith("Dropped an explanation"):
                 flags_by_type["Invented category dropped"] += 1
+            elif item.startswith("Summary: removed"):
+                flags_by_type["Wrong figure removed from summary"] += 1
 
     rated = [r for r in rows if r["feedback"] in ("up", "down")]
     up = sum(1 for r in rated if r["feedback"] == "up")
