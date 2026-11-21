@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 
 from flask import Flask, render_template, request
 
+from logic import analyse
 from validation import CURRENCIES, validate
 
 # All files sit in one folder: page templates, CSS and JS are loaded from here.
@@ -36,15 +37,29 @@ def index():
     return render_template("index.html", currencies=CURRENCIES, form=None, errors=[])
 
 
+def logic_only(analysis):
+    """Until the AI is connected, show the maths and the rule-based classification."""
+    drivers = [{
+        "category": r["category"],
+        "classification": r["hint"],
+        "explanation": " ".join(r["signals"]),
+        "evidence": [],
+        "confidence": 0,
+        "flags": [],
+        "row": r,
+    } for r in analysis["material"]]
+    return {"summary": "", "drivers": drivers, "data_gaps": [], "removed": [],
+            "overall_confidence": 0, "overall_band": "Low", "ai_used": True}
+
+
 @app.route("/analyse", methods=["POST"])
 def run_analysis():
     data, errors = validate(request.form)
     if errors:
         return render_template("index.html", currencies=CURRENCIES, form=request.form, errors=errors), 400
-    # Logic layer comes next. For now, confirm the input is clean.
-    return render_template("message.html", title="Input looks good",
-                           message=f"{len(data['rows'])} categories received for {data['period']}. "
-                                   "Analysis is not built yet.")
+    analysis = analyse(data)
+    rec = {"id": "draft", "created_at": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M")}
+    return render_template("report.html", rec=rec, data=data, analysis=analysis, result=logic_only(analysis))
 
 
 @app.errorhandler(404)

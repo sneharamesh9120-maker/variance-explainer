@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+{% block title %}{{ data.title }} | Variance Explainer{% endblock %}
+{% block content %}
+{% set sym = data.symbol %}
+{% set t = analysis.totals %}
+
+<section class="report-head">
+  <div>
+    <p class="eyebrow">Report #{{ rec.id }} &middot; {{ data.period }} &middot; {{ rec.created_at }} UTC</p>
+    <h1>{{ data.title }}</h1>
+  </div>
+  <div class="conf conf-{{ result.overall_band|lower }}">
+    <span class="conf-num">{{ result.overall_confidence }}</span>
+    <span class="conf-label">{{ result.overall_band }} confidence</span>
+  </div>
+</section>
+
+<div class="stats">
+  <div class="stat"><span>Net forecast</span><strong>{{ t.net_forecast|money(sym) }}</strong></div>
+  <div class="stat"><span>Net actual</span><strong>{{ t.net_actual|money(sym) }}</strong></div>
+  <div class="stat {{ 'bad' if t.net_variance < 0 else 'good' }}">
+    <span>Net variance</span><strong>{{ t.net_variance|money(sym) }}</strong>
+    <small>{{ t.net_variance_pct|pct }}</small>
+  </div>
+  <div class="stat"><span>Lines that matter</span><strong>{{ analysis.material|length }} of {{ analysis.rows|length }}</strong></div>
+</div>
+
+{% if not result.ai_used %}
+<div class="errors">
+  <strong>AI explanation unavailable.</strong> {{ result.ai_error }}
+  The calculated figures below are still correct; only the written explanation is missing.
+</div>
+{% endif %}
+
+{% if result.summary %}
+<section class="card summary">
+  <h2>Summary for leadership</h2>
+  <p>{{ result.summary }}</p>
+  <p class="hint">Written by the AI from the checked drivers below. Every cause it mentions should appear in your notes.</p>
+</section>
+{% endif %}
+
+{% if result.drivers %}
+<h2 class="section-title">Key variance drivers</h2>
+<div class="drivers">
+  {% for d in result.drivers %}
+  {% set r = d.row %}
+  <article class="driver">
+    <header>
+      <h3>{{ d.category }}{% if r.key_driver %} <span class="tag key">key driver</span>{% endif %}</h3>
+      <span class="chip chip-{{ d.classification|replace(' + ', '-')|replace(' ', '-') }}">{{ d.classification }}</span>
+    </header>
+    <div class="driver-nums">
+      <span>{{ r.forecast|money(sym) }} &rarr; {{ r.actual|money(sym) }}</span>
+      <strong class="{{ 'bad' if r.direction == 'unfavourable' else 'good' }}">
+        {{ r.variance|money(sym) }} ({{ r.variance_pct|pct }})
+      </strong>
+      <span class="muted">{{ r.direction }} &middot; {{ '%.0f'|format(r.share * 100) }}% of total movement</span>
+    </div>
+    {% if r.pvm %}
+    <div class="pvm">
+      <span>Volume effect <strong>{{ r.pvm.volume_effect|money(sym) }}</strong></span>
+      <span>Price effect <strong>{{ r.pvm.price_effect|money(sym) }}</strong></span>
+    </div>
+    {% endif %}
+    <p>{{ d.explanation }}</p>
+    {% if d.evidence %}
+    <div class="evidence">
+      <span class="label">Based on</span>
+      <ul>{% for e in d.evidence %}<li>{{ e }}</li>{% endfor %}</ul>
+    </div>
+    {% endif %}
+    <div class="meter" title="Confidence {{ d.confidence }} / 100">
+      <div class="meter-fill conf-{{ ('high' if d.confidence >= 75 else 'medium' if d.confidence >= 50 else 'low') }}" style="width: {{ d.confidence }}%"></div>
+    </div>
+    <p class="muted small">Confidence {{ d.confidence }}/100 &middot; evidence: {{ r.evidence_level }}</p>
+    {% if d.flags %}
+    <ul class="flags">{% for f in d.flags %}<li>{{ f }}</li>{% endfor %}</ul>
+    {% endif %}
+  </article>
+  {% endfor %}
+</div>
+{% endif %}
+
+{% if result.data_gaps %}
+<section class="card">
+  <h2>Questions to ask before the review</h2>
+  <p class="hint">The data could not explain these. Someone in the business needs to answer them.</p>
+  <ol>{% for g in result.data_gaps %}<li>{{ g }}</li>{% endfor %}</ol>
+</section>
+{% endif %}
+
+<section class="card logic">
+  <h2>What the logic layer worked out (before the AI)</h2>
+  <ol class="steps">{% for s in analysis.steps %}<li>{{ s }}</li>{% endfor %}</ol>
+  <div class="table-scroll">
+  <table class="data">
+    <thead>
+      <tr><th>Category</th><th>Type</th><th class="num">Forecast</th><th class="num">Actual</th>
+      <th class="num">Variance</th><th class="num">%</th><th>Effect</th><th>Material?</th><th>Rule-based call</th></tr>
+    </thead>
+    <tbody>
+      {% for r in analysis.rows|sort(attribute='share', reverse=True) %}
+      <tr class="{{ '' if r.material else 'dim' }}">
+        <td>{{ r.category }}</td><td>{{ r.type }}</td>
+        <td class="num">{{ r.forecast|money(sym) }}</td><td class="num">{{ r.actual|money(sym) }}</td>
+        <td class="num">{{ r.variance|money(sym) }}</td><td class="num">{{ r.variance_pct|pct }}</td>
+        <td>{{ r.direction }}</td><td>{{ 'Yes' if r.material else 'No' }}</td>
+        <td title="{{ r.signals|join(' ') }}">{{ r.hint }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</section>
+
+{% if result.removed %}
+<section class="card warn">
+  <h2>What the checks removed from the AI's answer</h2>
+  <ul>{% for x in result.removed %}<li>{{ x }}</li>{% endfor %}</ul>
+</section>
+{% endif %}
+
+{% endblock %}
