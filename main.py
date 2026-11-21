@@ -10,7 +10,10 @@ from datetime import datetime, timezone
 
 from flask import Flask, render_template, request
 
+from checks import ParseError, check_and_score, logic_only_result, parse_reply
+from llm import LLMError, call_llm
 from logic import analyse
+from prompt import build_messages
 from validation import CURRENCIES, validate
 
 # All files sit in one folder: page templates, CSS and JS are loaded from here.
@@ -37,29 +40,26 @@ def index():
     return render_template("index.html", currencies=CURRENCIES, form=None, errors=[])
 
 
-def logic_only(analysis):
-    """Until the AI is connected, show the maths and the rule-based classification."""
-    drivers = [{
-        "category": r["category"],
-        "classification": r["hint"],
-        "explanation": " ".join(r["signals"]),
-        "evidence": [],
-        "confidence": 0,
-        "flags": [],
-        "row": r,
-    } for r in analysis["material"]]
-    return {"summary": "", "drivers": drivers, "data_gaps": [], "removed": [],
-            "overall_confidence": 0, "overall_band": "Low", "ai_used": True}
-
-
 @app.route("/analyse", methods=["POST"])
 def run_analysis():
     data, errors = validate(request.form)
     if errors:
         return render_template("index.html", currencies=CURRENCIES, form=request.form, errors=errors), 400
+
     analysis = analyse(data)
+    if not analysis["material"]:
+        result = logic_only_result(analysis, "Nothing passed the materiality rule.")
+        result["ai_used"] = True
+        result["summary"] = "Every line is close to forecast or too small to matter. Nothing needs explaining."
+    else:
+        try:
+            reply = call_llm(build_messages(data, analysis))
+            result = check_and_score(parse_reply(reply["text"]), analysis)
+        except (LLMError, ParseError) as e:
+            result = logic_only_result(analysis, str(e))
+
     rec = {"id": "draft", "created_at": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M")}
-    return render_template("report.html", rec=rec, data=data, analysis=analysis, result=logic_only(analysis))
+    return render_template("report.html", rec=rec, data=data, analysis=analysis, result=result)
 
 
 @app.errorhandler(404)
