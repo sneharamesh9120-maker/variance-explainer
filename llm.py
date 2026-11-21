@@ -11,7 +11,7 @@ import time
 from openai import OpenAI
 
 GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai/"
-TIMEOUT_SECONDS = 60
+TIMEOUT_SECONDS = 45
 
 
 class LLMError(Exception):
@@ -24,7 +24,7 @@ def _client_and_model():
     if gemini_key:
         client = OpenAI(api_key=gemini_key, base_url=GEMINI_BASE_URL,
                         timeout=TIMEOUT_SECONDS, max_retries=1)
-        return client, os.environ.get("GEMINI_MODEL", "gemini-4-hydrogen")
+        return client, os.environ.get("GEMINI_MODEL", "gemini-3.1-flash-lite")
     if openai_key:
         client = OpenAI(api_key=openai_key, timeout=TIMEOUT_SECONDS, max_retries=1)
         return client, os.environ.get("OPENAI_MODEL", "gpt-4o-mini")

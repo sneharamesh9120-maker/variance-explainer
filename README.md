@@ -26,7 +26,7 @@ Add these in Replit under **Secrets**:
 | Name | Needed? | What it does |
 |---|---|---|
 | `GEMINI_API_KEY` | Yes | Free key from Google AI Studio |
-| `GEMINI_MODEL` | No | Defaults to `gemini-4-hydrogen` |
+| `GEMINI_MODEL` | No | Defaults to `gemini-3.1-flash-lite` |
 | `ADMIN_PASSWORD` | No | Locks the admin page. If not set, the page is open |
 | `SESSION_SECRET` | No | Any long random text |
 
