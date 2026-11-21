@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="intro">
+  <h1>Why did we miss the forecast?</h1>
+  <p>Enter forecast and actual by category. The app works out the numbers first, picks the lines that
+  matter, and only then asks the AI to explain them, using your notes as the only source of causes.</p>
+</section>
+
+{% if errors %}
+<div class="errors">
+  <strong>Please fix these before running the analysis:</strong>
+  <ul>{% for e in errors %}<li>{{ e }}</li>{% endfor %}</ul>
+</div>
+{% endif %}
+
+<form method="post" action="{{ url_for('run_analysis') }}" id="variance-form" novalidate>
+  <div class="card grid3">
+    <label>Report name
+      <input name="title" maxlength="120" placeholder="October close, India retail"
+             value="{{ form.get('title', '') if form else '' }}">
+    </label>
+    <label>Period
+      <input name="period" placeholder="Oct 2026" value="{{ form.get('period', '') if form else '' }}">
+    </label>
+    <label>Currency
+      <select name="currency">
+        {% for code in currencies %}
+        <option value="{{ code }}" {% if form and form.get('currency') == code %}selected{% endif %}>{{ code }}</option>
+        {% endfor %}
+      </select>
+    </label>
+  </div>
+
+  <div class="card">
+    <div class="row-head">
+      <h2>Forecast vs actual</h2>
+      <div>
+        <button type="button" class="ghost" id="load-example">Load example data</button>
+        <button type="button" class="ghost" id="clear-rows">Clear</button>
+      </div>
+    </div>
+    <p class="hint">Units are optional. When you add them, the app can split the variance into price and
+    volume using maths instead of guessing. Notes are where causes come from: if a line has no note,
+    the report will say the cause is unknown.</p>
+
+    <div class="table-scroll">
+    <table class="entry">
+      <thead>
+        <tr>
+          <th>Category</th><th>Type</th><th>Forecast</th><th>Actual</th>
+          <th>Forecast units <span class="opt">optional</span></th>
+          <th>Actual units <span class="opt">optional</span></th>
+          <th>What you know about it <span class="opt">optional</span></th><th></th>
+        </tr>
+      </thead>
+      <tbody id="rows">
+        {% set n = (form.getlist('category')|length) if form else 4 %}
+        {% for i in range([n, 1]|max) %}
+        <tr>
+          <td><input name="category" value="{{ form.getlist('category')[i] if form else '' }}"></td>
+          <td>
+            {% set t = form.getlist('type')[i] if form and form.getlist('type')|length > i else 'revenue' %}
+            <select name="type">
+              <option value="revenue" {% if t == 'revenue' %}selected{% endif %}>Revenue</option>
+              <option value="cost" {% if t == 'cost' %}selected{% endif %}>Cost</option>
+            </select>
+          </td>
+          <td><input name="forecast" inputmode="decimal" value="{{ form.getlist('forecast')[i] if form else '' }}"></td>
+          <td><input name="actual" inputmode="decimal" value="{{ form.getlist('actual')[i] if form else '' }}"></td>
+          <td><input name="forecast_units" inputmode="decimal" value="{{ form.getlist('forecast_units')[i] if form else '' }}"></td>
+          <td><input name="actual_units" inputmode="decimal" value="{{ form.getlist('actual_units')[i] if form else '' }}"></td>
+          <td><input name="notes" maxlength="300" value="{{ form.getlist('notes')[i] if form else '' }}"></td>
+          <td><button type="button" class="x" title="Remove row">&times;</button></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    <button type="button" class="ghost" id="add-row">+ Add category</button>
+  </div>
+
+  <div class="actions">
+    <button type="submit" class="primary" id="submit-btn">Explain the variance</button>
+    <span class="hint">Takes about 5 to 15 seconds.</span>
+  </div>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+{% include "form.js" %}
+</script>
+{% endblock %}

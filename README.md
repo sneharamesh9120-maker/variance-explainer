@@ -4,7 +4,7 @@ Month-end, leadership asks "why did we miss the forecast?". This app helps a fin
 
 You enter forecast and actual by category, with optional units and notes. The app does the maths first (variance, materiality, biggest contributors, price/volume split), then asks an LLM to explain only the lines that matter, using only your notes as the source of causes. The reply is checked before you see it.
 
-The product brief is in `docs/Variance_Explainer_Product_Brief.pdf`.
+The product brief is `Variance_Explainer_Product_Brief.pdf`. All files sit in one folder on purpose, to keep the project simple to upload and run.
 
 ## How a report is built
 
@@ -12,7 +12,7 @@ The product brief is in `docs/Variance_Explainer_Product_Brief.pdf`.
 2. **Validation**: numbers, duplicates, missing fields, unit pairs (`validation.py`)
 3. **Logic layer**: variance %, materiality rule, key drivers, price/volume split, rule-based classification (`logic.py`)
 4. **Prompt**: only material lines, pre-calculated numbers, notes word for word (`prompt.py`)
-5. **LLM call**: OpenAI, low temperature, JSON reply (`llm.py`)
+5. **LLM call**: Google Gemini (free tier), low temperature, JSON reply (`llm.py`)
 6. **Parsing**: tolerant JSON reader with a fallback (`checks.py`)
 7. **Checks and confidence**: drops invented categories, removes evidence that isn't in the notes, overrides wrong price/volume calls, caps confidence by evidence (`checks.py`)
 8. **Database**: every report saved in SQLite (`db.py`)
@@ -25,8 +25,8 @@ Add these in Replit under **Secrets**:
 
 | Name | Needed? | What it does |
 |---|---|---|
-| `OPENAI_API_KEY` | Yes | Your OpenAI key |
-| `OPENAI_MODEL` | No | Defaults to `gpt-4o-mini` |
+| `GEMINI_API_KEY` | Yes | Free key from Google AI Studio |
+| `GEMINI_MODEL` | No | Defaults to `gemini-4-hydrogen` |
 | `ADMIN_PASSWORD` | No | Locks the admin page. If not set, the page is open |
 | `SESSION_SECRET` | No | Any long random text |
 
