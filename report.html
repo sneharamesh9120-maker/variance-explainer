@@ -9,10 +9,17 @@
     <p class="eyebrow">Report #{{ rec.id }} &middot; {{ data.period }} &middot; {{ rec.created_at }} UTC</p>
     <h1>{{ data.title }}</h1>
   </div>
+  {% if result.overall_confidence is none %}
+  <div class="conf conf-high">
+    <span class="conf-num">On plan</span>
+    <span class="conf-label">Nothing to explain</span>
+  </div>
+  {% else %}
   <div class="conf conf-{{ result.overall_band|lower }}">
     <span class="conf-num">{{ result.overall_confidence }}</span>
     <span class="conf-label">{{ result.overall_band }} confidence</span>
   </div>
+  {% endif %}
 </section>
 
 <div class="stats">
@@ -36,7 +43,7 @@
 <section class="card summary">
   <h2>Summary for leadership</h2>
   <p>{{ result.summary }}</p>
-  <p class="hint">The first sentence is calculated by the app. The rest is written by the AI and checked: causes must come from your notes, and any figure must match your data.</p>
+  {% if result.overall_confidence is not none %}<p class="hint">The first sentence is calculated by the app. The rest is written by the AI and checked: causes must come from your notes, and any figure must match your data.</p>{% endif %}
 </section>
 {% endif %}
 

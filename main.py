@@ -57,6 +57,9 @@ def run_analysis():
     if not analysis["material"]:
         result = logic_only_result(analysis, "Nothing passed the materiality rule, so there was nothing to explain.")
         result["ai_used"] = True  # not a failure, just nothing to send
+        # Confidence doesn't apply when there's nothing to explain; the maths alone settles it.
+        result["overall_confidence"] = None
+        result["overall_band"] = "On plan"
         result["summary"] = (
             f"Every line is within {analysis['thresholds']['material_pct']:.0f}% of forecast or too small to matter. "
             "No variance needs explaining this period."

@@ -16,6 +16,10 @@ PRICE_IN = float(os.environ.get("PRICE_INPUT_PER_M", "0"))
 PRICE_OUT = float(os.environ.get("PRICE_OUTPUT_PER_M", "0"))
 
 
+def _avg(values):
+    return round(sum(values) / len(values)) if values else 0
+
+
 def dashboard_stats():
     with db._conn() as c:
         rows = [dict(r) for r in c.execute("SELECT * FROM reports ORDER BY id DESC").fetchall()]
@@ -63,7 +67,7 @@ def dashboard_stats():
         "total": total,
         "ai_success_rate": round(len(ai_ok) / total * 100) if total else 0,
         "failures": len(failures),
-        "avg_confidence": round(sum(r["overall_confidence"] or 0 for r in rows) / total) if total else 0,
+        "avg_confidence": _avg([r["overall_confidence"] for r in rows if r["overall_confidence"] is not None]),
         "avg_latency": round(sum(r["latency_ms"] or 0 for r in ai_ok) / len(ai_ok) / 1000, 1) if ai_ok else 0,
         "reports_with_interventions": sum(1 for r in rows if (r["flags_count"] or 0) + (r["removed_count"] or 0) > 0),
         "tokens_in": p_tok,
@@ -73,7 +77,7 @@ def dashboard_stats():
         "classes": classes.most_common(),
         "class_max": max(classes.values()) if classes else 1,
         "flags": flags_by_type.most_common(),
-        "bands": [(b, bands.get(b, 0)) for b in ("High", "Medium", "Low")],
+        "bands": [(b, bands.get(b, 0)) for b in ("High", "Medium", "Low", "On plan")],
         "rated": len(rated),
         "trust_pct": round(up / len(rated) * 100) if rated else None,
         "recent_errors": [(r["id"], r["created_at"], r["ai_error"]) for r in failures[:5]],

@@ -39,7 +39,7 @@
     {% endfor %}
     {% else %}<p class="muted">No drivers yet.</p>{% endif %}
     <h3>Confidence spread</h3>
-    {% for b, n in s.bands %}<span class="chip conf-{{ b|lower }}">{{ b }}: {{ n }}</span> {% endfor %}
+    {% for b, n in s.bands %}<span class="chip conf-{{ 'high' if b == 'On plan' else b|lower }}">{{ b }}: {{ n }}</span> {% endfor %}
   </section>
 </div>
 
@@ -72,7 +72,7 @@
       <tr>
         <td>{{ r.id }}</td><td>{{ r.created_at }}</td><td>{{ r.title }}</td>
         <td>{{ r.material_count }}/{{ r.line_count }}</td>
-        <td>{{ r.overall_band }} ({{ r.overall_confidence }})</td>
+        <td>{{ r.overall_band }}{% if r.overall_confidence is not none %} ({{ r.overall_confidence }}){% endif %}</td>
         <td>{{ (r.flags_count or 0) + (r.removed_count or 0) }}</td>
         <td>{{ {'up': 'Useful', 'down': 'Wrong'}.get(r.feedback, '') }}</td>
         <td><a href="{{ url_for('view_report', report_id=r.id) }}">Open</a></td>
