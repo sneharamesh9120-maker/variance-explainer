@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% block title %}Admin | Variance Explainer{% endblock %}
+{% block content %}
+<div class="row-head">
+  <h1>Admin dashboard</h1>
+  {% if not open_mode %}<a href="{{ url_for('admin_logout') }}">Sign out</a>{% endif %}
+</div>
+{% if open_mode %}<p class="hint">Open for review. Set ADMIN_PASSWORD in Secrets to lock this page.</p>{% endif %}
+
+<div class="stats">
+  <div class="stat"><span>Reports run</span><strong>{{ s.total }}</strong></div>
+  <div class="stat"><span>AI calls that worked</span><strong>{{ s.ai_success_rate }}%</strong><small>{{ s.failures }} fell back to logic only</small></div>
+  <div class="stat"><span>Average confidence</span><strong>{{ s.avg_confidence }}</strong></div>
+  <div class="stat"><span>Average AI response</span><strong>{{ s.avg_latency }}s</strong></div>
+  <div class="stat"><span>Reports the checks corrected</span><strong>{{ s.reports_with_interventions }}</strong></div>
+  <div class="stat"><span>User trust</span><strong>{{ (s.trust_pct ~ '%') if s.trust_pct is not none else 'n/a' }}</strong><small>{{ s.rated }} rated</small></div>
+</div>
+
+<div class="two-col">
+  <section class="card">
+    <h2>Failure mode watch</h2>
+    <p class="hint">How often the checks stopped the AI from saying something the data doesn't support.</p>
+    {% if s.flags %}
+    <table class="data">
+      {% for name, n in s.flags %}<tr><td>{{ name }}</td><td class="num">{{ n }}</td></tr>{% endfor %}
+    </table>
+    {% else %}<p class="muted">Nothing flagged yet.</p>{% endif %}
+  </section>
+
+  <section class="card">
+    <h2>Variance types found</h2>
+    {% if s.classes %}
+    {% for name, n in s.classes %}
+    <div class="bar-row">
+      <span class="bar-label">{{ name }}</span>
+      <div class="bar"><div class="bar-fill" style="width: {{ (n / s.class_max * 100)|round }}%"></div></div>
+      <span class="num">{{ n }}</span>
+    </div>
+    {% endfor %}
+    {% else %}<p class="muted">No drivers yet.</p>{% endif %}
+    <h3>Confidence spread</h3>
+    {% for b, n in s.bands %}<span class="chip conf-{{ b|lower }}">{{ b }}: {{ n }}</span> {% endfor %}
+  </section>
+</div>
+
+<div class="two-col">
+  <section class="card">
+    <h2>Cost</h2>
+    <table class="data">
+      <tr><td>Input tokens</td><td class="num">{{ '{:,}'.format(s.tokens_in) }}</td></tr>
+      <tr><td>Output tokens</td><td class="num">{{ '{:,}'.format(s.tokens_out) }}</td></tr>
+      <tr><td>Total spend (USD)</td><td class="num">${{ '%.4f'|format(s.cost_usd) }}</td></tr>
+      <tr><td>Per report (USD)</td><td class="num">${{ '%.5f'|format(s.cost_per_report) }}</td></tr>
+    </table>
+    <p class="hint">Running on the Gemini free tier, so spend is $0. Set PRICE_INPUT_PER_M and PRICE_OUTPUT_PER_M in Secrets to see paid-tier costs.</p>
+  </section>
+  <section class="card">
+    <h2>Recent AI errors</h2>
+    {% if s.recent_errors %}
+    <ul class="small">{% for id, when, err in s.recent_errors %}<li><a href="{{ url_for('view_report', report_id=id) }}">#{{ id }}</a> {{ when }}: {{ err }}</li>{% endfor %}</ul>
+    {% else %}<p class="muted">None.</p>{% endif %}
+  </section>
+</div>
+
+<section class="card">
+  <h2>All reports</h2>
+  <div class="table-scroll">
+  <table class="data">
+    <thead><tr><th>#</th><th>Created</th><th>Report</th><th>Lines</th><th>Confidence</th><th>Checks fired</th><th>Feedback</th><th></th><th></th></tr></thead>
+    <tbody>
+    {% for r in s.reports %}
+      <tr>
+        <td>{{ r.id }}</td><td>{{ r.created_at }}</td><td>{{ r.title }}</td>
+        <td>{{ r.material_count }}/{{ r.line_count }}</td>
+        <td>{{ r.overall_band }} ({{ r.overall_confidence }})</td>
+        <td>{{ (r.flags_count or 0) + (r.removed_count or 0) }}</td>
+        <td>{{ {'up': 'Useful', 'down': 'Wrong'}.get(r.feedback, '') }}</td>
+        <td><a href="{{ url_for('view_report', report_id=r.id) }}">Open</a></td>
+        <td><form method="post" action="{{ url_for('admin_delete', report_id=r.id) }}"><button class="link-danger">Delete</button></form></td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</section>
+{% endblock %}

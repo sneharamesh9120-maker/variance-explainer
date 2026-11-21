@@ -7,8 +7,9 @@ Pipeline for every report:
 
 import os
 
-from flask import Flask, abort, flash, redirect, render_template, request, url_for
+from flask import Flask, abort, flash, redirect, render_template, request, session, url_for
 
+import admin
 import db
 from checks import ParseError, check_and_score, logic_only_result, parse_reply
 from llm import LLMError, call_llm
@@ -19,6 +20,7 @@ from validation import CURRENCIES, validate
 # All files sit in one folder: page templates, CSS and JS are loaded from here.
 app = Flask(__name__, template_folder=".", static_folder=None)
 app.secret_key = os.environ.get("SESSION_SECRET", "dev-only-change-me")
+ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "")
 
 db.init_db()
 
@@ -93,6 +95,38 @@ def feedback(report_id):
 @app.route("/history")
 def history():
     return render_template("history.html", reports=db.list_reports())
+
+
+def _admin_ok():
+    return not ADMIN_PASSWORD or session.get("is_admin")
+
+
+@app.route("/admin", methods=["GET", "POST"])
+def admin_dashboard():
+    if request.method == "POST":
+        if request.form.get("password") == ADMIN_PASSWORD:
+            session["is_admin"] = True
+        else:
+            flash("Wrong password.")
+        return redirect(url_for("admin_dashboard"))
+    if not _admin_ok():
+        return render_template("admin_login.html")
+    return render_template("admin.html", s=admin.dashboard_stats(), open_mode=not ADMIN_PASSWORD)
+
+
+@app.route("/admin/delete/<int:report_id>", methods=["POST"])
+def admin_delete(report_id):
+    if not _admin_ok():
+        abort(403)
+    db.delete_report(report_id)
+    flash(f"Report #{report_id} deleted.")
+    return redirect(url_for("admin_dashboard"))
+
+
+@app.route("/admin/logout")
+def admin_logout():
+    session.pop("is_admin", None)
+    return redirect(url_for("index"))
 
 
 @app.errorhandler(404)
